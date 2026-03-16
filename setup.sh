@@ -1,0 +1,60 @@
+#!/bin/bash
+# MAGI — GB10/DGX Spark Setup Script
+set -euo pipefail
+
+echo "=== MAGI System Setup ==="
+echo ""
+
+# 1. Check Ollama
+echo "[1/5] Checking Ollama..."
+if ! command -v ollama &>/dev/null; then
+    echo "ERROR: Ollama not found. Install from https://ollama.com"
+    exit 1
+fi
+echo "  ✓ Ollama found"
+
+# 2. Pull required models
+echo "[2/5] Pulling models..."
+echo "  Pulling qwen3.5:35b-a3b (23GB)..."
+ollama pull qwen3.5:35b-a3b || echo "  ⚠ Pull failed (may already exist)"
+
+# Optional: Nemotron Super (uncomment if 128GB available)
+# echo "  Pulling nemotron-3-super (86GB)..."
+# ollama pull nemotron-3-super || echo "  ⚠ Pull failed"
+
+# 3. Set Ollama environment
+echo "[3/5] Setting Ollama configuration..."
+export OLLAMA_KEEP_ALIVE=120m
+export OLLAMA_MAX_LOADED_MODELS=2
+export OLLAMA_NUM_PARALLEL=1
+export OLLAMA_HOST=0.0.0.0:11434
+echo "  ✓ KEEP_ALIVE=120m, MAX_LOADED_MODELS=2"
+
+# 4. Initialize directories
+echo "[4/5] Initializing directories..."
+mkdir -p data/cache/eco data/cache/human data/cache/culture data/provided
+mkdir -p memory/debates memory/verdicts memory/anomalies
+chmod +x scripts/*.py scripts/*.sh 2>/dev/null || true
+echo "  ✓ Directories ready"
+
+# 5. Check OpenClaw
+echo "[5/5] Checking OpenClaw..."
+if command -v openclaw &>/dev/null; then
+    echo "  ✓ OpenClaw found: $(openclaw --version 2>/dev/null || echo 'version unknown')"
+else
+    echo "  ⚠ OpenClaw not found. Install with: curl -fsSL https://openclaw.ai/install.sh | bash"
+fi
+
+echo ""
+echo "=== Setup Complete ==="
+echo ""
+echo "To start MAGI:"
+echo "  1. cd openclaw-workspace"
+echo "  2. openclaw start"
+echo "  3. Open http://localhost:18789"
+echo ""
+echo "To switch domain:"
+echo "  ./scripts/switch_domain.sh eco|human|culture"
+echo ""
+echo "Memory budget:"
+ollama list 2>/dev/null | head -5 || echo "  (run 'ollama list' to check loaded models)"

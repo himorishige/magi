@@ -1,0 +1,14 @@
+{
+  "domain": "eco",
+  "timestamp": "2026-03-17T09:30:00Z",
+  "source": "nasa-firms (cached)",
+  "location": "Amazon Basin",
+  "metrics": [
+    {"name": "fire_count", "value": 347, "unit": "active fires (72h)", "severity": "critical"},
+    {"name": "fire_area", "value": 12400, "unit": "hectares", "severity": "high"},
+    {"name": "co2_emission", "value": 2.3, "unit": "Mt CO2", "severity": "high"},
+    {"name": "fire_trend", "value": 18.7, "unit": "% increase (week-over-week)", "severity": "critical"},
+    {"name": "deforestation_rate", "value": 0.73, "unit": "% annual rate", "severity": "high"}
+  ],
+  "summary": "347 active fire points detected in Amazon Basin over past 72 hours. 18.7% increase week-over-week. Estimated CO2 emission: 2.3 Mt. Deforestation rate of 0.73% exceeds critical threshold of 0.5%."
+}

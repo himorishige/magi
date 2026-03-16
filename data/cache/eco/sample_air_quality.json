@@ -1,0 +1,15 @@
+{
+  "domain": "eco",
+  "timestamp": "2026-03-17T10:00:00Z",
+  "source": "open-meteo (cached)",
+  "location": "37.3382,-121.8863",
+  "metrics": [
+    {"name": "aqi", "value": 245, "unit": "European AQI", "severity": "critical"},
+    {"name": "pm2_5", "value": 78.3, "unit": "μg/m³", "severity": "high"},
+    {"name": "pm10", "value": 142.1, "unit": "μg/m³", "severity": "high"},
+    {"name": "co", "value": 1250.4, "unit": "μg/m³", "severity": "medium"},
+    {"name": "no2", "value": 45.2, "unit": "μg/m³", "severity": "medium"},
+    {"name": "o3", "value": 89.7, "unit": "μg/m³", "severity": "medium"}
+  ],
+  "summary": "Air Quality Index: 245 (critical). PM2.5: 78.3 μg/m³ — exceeds WHO guideline of 15 μg/m³ by 5.2x. Wildfire smoke from Central Valley fires contributing to elevated particulate matter in San Jose metropolitan area."
+}
