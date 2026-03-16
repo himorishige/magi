@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAGI SYSTEM</title>
+<style>
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+@keyframes borderPulse { 0%,100%{border-color:var(--agent-color)} 50%{border-color:transparent} }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes scanMove { 0%{top:-100%} 100%{top:100%} }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0a0a; color:#ccc; font-family:'Courier New',monospace;
+  overflow:hidden; height:100vh; display:flex; flex-direction:column;
+}
+/* CRT scanline overlay */
+body::after {
+  content:''; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,100,0.03) 2px,rgba(0,255,100,0.03) 4px);
+  pointer-events:none; z-index:1000;
+}
+/* Header */
+.header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 20px; border-bottom:2px solid #333; flex-shrink:0;
+}
+.header-left { display:flex; align-items:center; gap:16px; }
+.system-title {
+  font-size:1.1em; font-weight:bold; color:#00ff88;
+  letter-spacing:4px; text-transform:uppercase;
+}
+.system-badge {
+  font-size:0.6em; padding:2px 8px; border:1px solid #333;
+  color:#666; letter-spacing:2px;
+}
+.pattern-display {
+  font-size:2em; font-weight:bold; letter-spacing:8px;
+  color:#888; transition:color 0.5s;
+}
+.pattern-display.critical { color:#ff0040; animation:blink 1s infinite; }
+.pattern-display.severe { color:#ff2200; animation:blink 1s infinite; }
+.pattern-display.high { color:#ff8800; }
+.pattern-display.elevated { color:#ffaa00; }
+.pattern-display.moderate { color:#ffcc00; }
+.pattern-display.low { color:#00ff88; }
+.pattern-display.clear { color:#888; }
+.header-right { display:flex; align-items:center; gap:16px; }
+.clock { font-size:0.8em; color:#444; letter-spacing:2px; }
+.status-indicator {
+  font-size:0.65em; padding:2px 8px; letter-spacing:2px;
+  border:1px solid; color:#666; border-color:#333;
+}
+.status-indicator.active { color:#00ff88; border-color:#00ff88; animation:pulse 2s infinite; }
+.status-indicator.processing { color:#ff8800; border-color:#ff8800; animation:pulse 1s infinite; }
+/* Main content */
+.main { display:flex; flex:1; overflow:hidden; }
+/* Sidebar */
+.sidebar {
+  width:180px; padding:12px; border-right:1px solid #222;
+  overflow-y:auto; flex-shrink:0;
+}
+.sidebar h3 {
+  color:#555; font-size:0.65em; margin-bottom:8px;
+  text-transform:uppercase; letter-spacing:2px;
+}
+.metric {
+  display:flex; justify-content:space-between; padding:4px 0;
+  border-bottom:1px solid #1a1a1a; font-size:0.7em;
+}
+.metric-name { color:#555; }
+.metric-val { font-weight:bold; }
+.data-source {
+  font-size:0.6em; color:#333; margin-top:8px; padding:4px;
+  border:1px solid #1a1a1a;
+}
+.data-summary {
+  font-size:0.6em; color:#444; margin-top:8px; padding:6px;
+  background:#111; border:1px solid #1a1a1a; line-height:1.4;
+}
+/* Agent panels */
+.agents { flex:1; display:flex; gap:1px; background:#1a1a1a; }
+.agent-panel {
+  --agent-color:#888;
+  flex:1; padding:14px; background:#0a0a0a;
+  border-top:3px solid var(--agent-color);
+  overflow-y:auto; display:flex; flex-direction:column;
+  transition:border-color 0.3s;
+}
+.agent-panel.analyzing { animation:borderPulse 1s infinite; }
+.agent-panel.done .agent-content { animation:fadeIn 0.5s ease-out; }
+.agent-header {
+  font-size:1.1em; font-weight:bold; letter-spacing:3px;
+  color:var(--agent-color); margin-bottom:2px;
+}
+.agent-label {
+  font-size:0.6em; letter-spacing:2px; color:var(--agent-color);
+  opacity:0.6; margin-bottom:10px;
+}
+.agent-model {
+  font-size:0.55em; color:#333; margin-bottom:8px; letter-spacing:1px;
+}
+.agent-status {
+  font-size:0.7em; color:#444; margin:auto 0; text-align:center;
+  letter-spacing:2px;
+}
+.agent-status.active { color:var(--agent-color); animation:pulse 1s infinite; }
+.confidence-bar {
+  display:flex; align-items:center; gap:6px; margin-bottom:8px;
+}
+.confidence-label { font-size:0.65em; color:#555; }
+.confidence-track {
+  flex:1; height:4px; background:#1a1a1a; position:relative;
+}
+.confidence-fill {
+  height:100%; background:var(--agent-color); transition:width 0.8s ease-out;
+  width:0;
+}
+.confidence-val { font-size:0.7em; color:var(--agent-color); font-weight:bold; min-width:32px; }
+.opinion { font-size:0.72em; line-height:1.5; color:#999; margin-bottom:8px; }
+.key-points { font-size:0.65em; padding-left:14px; margin-bottom:8px; color:#777; }
+.key-points li { margin-bottom:4px; }
+.recommendation {
+  font-size:0.65em; padding:6px; background:#111;
+  border-left:2px solid var(--agent-color); color:#888;
+}
+.vote {
+  font-size:0.85em; font-weight:bold; text-align:center;
+  padding:6px; letter-spacing:3px; color:var(--agent-color);
+  margin-top:auto;
+}
+/* Control bar */
+.controls {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 20px; border-top:2px solid #333; flex-shrink:0;
+}
+.controls-left { display:flex; gap:8px; }
+.btn {
+  background:transparent; border:1px solid #444; color:#888;
+  padding:6px 16px; font-family:'Courier New',monospace;
+  font-size:0.75em; letter-spacing:2px; cursor:pointer;
+  text-transform:uppercase; transition:all 0.2s;
+}
+.btn:hover { border-color:#888; color:#ccc; }
+.btn:active { background:#222; }
+.btn:disabled { opacity:0.3; cursor:not-allowed; }
+.btn.primary { border-color:#00ff88; color:#00ff88; }
+.btn.primary:hover { background:#00ff8811; }
+.verdict-bar {
+  display:flex; align-items:center; gap:12px;
+}
+.verdict-label { font-size:0.65em; color:#555; letter-spacing:2px; }
+.verdict-detail {
+  font-size:0.85em; font-weight:bold; letter-spacing:2px;
+  transition:color 0.5s;
+}
+.elapsed { font-size:0.6em; color:#333; }
+</style>
+</head>
+<body>
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <span class="system-title">MAGI SYSTEM</span>
+    <span class="system-badge" id="domainBadge">ECO IMPACT</span>
+  </div>
+  <div class="pattern-display" id="patternDisplay">---</div>
+  <div class="header-right">
+    <span class="status-indicator" id="statusIndicator">STANDBY</span>
+    <span class="clock" id="clock"></span>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h3>Data Metrics</h3>
+    <div id="metricsContainer">
+      <div class="agent-status">NO DATA</div>
+    </div>
+    <div class="data-source" id="dataSource"></div>
+    <div class="data-summary" id="dataSummary"></div>
+  </div>
+  <!-- Agent Panels -->
+  <div class="agents">
+    <div class="agent-panel" id="panel-melchior" style="--agent-color:#00ff88">
+      <div class="agent-header">MELCHIOR</div>
+      <div class="agent-label">SCIENTIFIC ANALYSIS</div>
+      <div class="agent-model" id="model-melchior"></div>
+      <div class="agent-status" id="status-melchior">IDLE</div>
+      <div class="agent-content" id="content-melchior" style="display:none"></div>
+    </div>
+    <div class="agent-panel" id="panel-balthasar" style="--agent-color:#ff8800">
+      <div class="agent-header">BALTHASAR</div>
+      <div class="agent-label">ECONOMIC PRAGMATICS</div>
+      <div class="agent-model" id="model-balthasar"></div>
+      <div class="agent-status" id="status-balthasar">IDLE</div>
+      <div class="agent-content" id="content-balthasar" style="display:none"></div>
+    </div>
+    <div class="agent-panel" id="panel-casper" style="--agent-color:#8800ff">
+      <div class="agent-header">CASPER</div>
+      <div class="agent-label">ETHICAL FUTURES</div>
+      <div class="agent-model" id="model-casper"></div>
+      <div class="agent-status" id="status-casper">IDLE</div>
+      <div class="agent-content" id="content-casper" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="controls-left">
+    <button class="btn" id="btnScan" onclick="doScan()">SCAN</button>
+    <button class="btn primary" id="btnDebate" onclick="doDebate()">DEBATE</button>
+  </div>
+  <div class="verdict-bar">
+    <span class="verdict-label">VERDICT</span>
+    <span class="verdict-detail" id="verdictDetail">---</span>
+    <span class="elapsed" id="elapsedTime"></span>
+  </div>
+</div>
+
+<script>
+const API = '';
+const LEVEL_COLORS = {
+  critical:'#ff0040', severe:'#ff2200', high:'#ff8800',
+  elevated:'#ffaa00', moderate:'#ffcc00', low:'#00ff88', clear:'#888'
+};
+const SEV_COLORS = {
+  critical:'#ff0040', high:'#ff8800', medium:'#ffcc00',
+  low:'#00ff88', info:'#888'
+};
+
+// Clock
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toISOString().slice(11,19) + ' UTC';
+}, 1000);
+
+function setStatus(text, cls) {
+  const el = document.getElementById('statusIndicator');
+  el.textContent = text;
+  el.className = 'status-indicator' + (cls ? ' ' + cls : '');
+}
+
+function setButtons(disabled) {
+  document.getElementById('btnScan').disabled = disabled;
+  document.getElementById('btnDebate').disabled = disabled;
+}
+
+function renderMetrics(data) {
+  const container = document.getElementById('metricsContainer');
+  const metrics = data.metrics || [];
+  if (!metrics.length) {
+    container.innerHTML = '<div class="agent-status">NO DATA</div>';
+    return;
+  }
+  container.innerHTML = metrics.slice(0, 8).map(m => {
+    const color = SEV_COLORS[m.severity] || '#888';
+    return `<div class="metric">
+      <span class="metric-name">${m.name}</span>
+      <span class="metric-val" style="color:${color}">${m.value} ${m.unit || ''}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('dataSource').textContent =
+    `${(data.source || 'unknown').toUpperCase()} | ${(data.timestamp || '').slice(0,19)}`;
+  document.getElementById('dataSummary').textContent =
+    (data.summary || '').slice(0, 300);
+  document.getElementById('domainBadge').textContent =
+    (data.domain || 'ECO').toUpperCase() + ' IMPACT';
+}
+
+function resetPanels() {
+  ['melchior','balthasar','casper'].forEach(id => {
+    const panel = document.getElementById('panel-' + id);
+    panel.className = 'agent-panel';
+    document.getElementById('status-' + id).textContent = 'IDLE';
+    document.getElementById('status-' + id).className = 'agent-status';
+    document.getElementById('content-' + id).style.display = 'none';
+    document.getElementById('content-' + id).innerHTML = '';
+    document.getElementById('model-' + id).textContent = '';
+  });
+  document.getElementById('patternDisplay').textContent = '---';
+  document.getElementById('patternDisplay').className = 'pattern-display';
+  document.getElementById('verdictDetail').textContent = '---';
+  document.getElementById('verdictDetail').style.color = '#888';
+  document.getElementById('elapsedTime').textContent = '';
+}
+
+function renderAgentResult(agentId, result, elapsed) {
+  const panel = document.getElementById('panel-' + agentId);
+  const statusEl = document.getElementById('status-' + agentId);
+  const contentEl = document.getElementById('content-' + agentId);
+
+  panel.classList.remove('analyzing');
+  panel.classList.add('done');
+  statusEl.style.display = 'none';
+
+  const conf = result.confidence || 0;
+  const kp = (result.key_points || [])
+    .map(p => typeof p === 'string' ? p : JSON.stringify(p));
+
+  contentEl.innerHTML = `
+    <div class="confidence-bar">
+      <span class="confidence-label">CONF</span>
+      <div class="confidence-track">
+        <div class="confidence-fill" style="width:${conf * 100}%"></div>
+      </div>
+      <span class="confidence-val">${(conf * 100).toFixed(0)}%</span>
+    </div>
+    <div class="opinion">${(result.opinion || 'No response').slice(0, 400)}</div>
+    ${kp.length ? '<ul class="key-points">' + kp.map(p => '<li>' + p + '</li>').join('') + '</ul>' : ''}
+    <div class="recommendation"><strong>REC:</strong> ${(result.recommendation || 'N/A').slice(0, 250)}</div>
+    <div class="vote">VOTE: ${(result.confidence >= 0.9 ? 'CRITICAL' : result.confidence >= 0.75 ? 'HIGH' : result.confidence >= 0.6 ? 'MODERATE' : 'LOW').toUpperCase()}</div>
+  `;
+  contentEl.style.display = 'block';
+}
+
+async function doScan() {
+  setButtons(true);
+  setStatus('SCANNING', 'processing');
+  try {
+    const res = await fetch(API + '/api/scan');
+    const data = await res.json();
+    renderMetrics(data);
+    setStatus('DATA READY', 'active');
+  } catch (e) {
+    setStatus('SCAN FAILED', '');
+    console.error(e);
+  }
+  setButtons(false);
+}
+
+function doDebate() {
+  setButtons(true);
+  resetPanels();
+  setStatus('DEBATING', 'processing');
+  const t0 = performance.now();
+
+  const evtSource = new EventSource(API + '/api/debate', {
+    // POST via EventSource requires a workaround; use fetch + ReadableStream instead
+  });
+
+  // EventSource only supports GET, so we use fetch with streaming
+  fetch(API + '/api/debate', { method: 'POST' }).then(response => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    function processChunk() {
+      reader.read().then(({ done, value }) => {
+        if (done) {
+          setButtons(false);
+          return;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let eventType = '';
+        let eventData = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            eventData = line.slice(5).trim();
+          } else if (line === '' && eventType && eventData) {
+            handleSSEEvent(eventType, eventData, t0);
+            eventType = '';
+            eventData = '';
+          }
+        }
+        processChunk();
+      });
+    }
+    processChunk();
+  }).catch(e => {
+    console.error('Debate failed:', e);
+    setStatus('DEBATE FAILED', '');
+    setButtons(false);
+  });
+}
+
+function handleSSEEvent(event, dataStr, t0) {
+  let data;
+  try { data = JSON.parse(dataStr); } catch { return; }
+
+  switch (event) {
+    case 'scan_result':
+      renderMetrics(data);
+      break;
+
+    case 'agent_start': {
+      const panel = document.getElementById('panel-' + data.agent);
+      const statusEl = document.getElementById('status-' + data.agent);
+      const modelEl = document.getElementById('model-' + data.agent);
+      panel.classList.add('analyzing');
+      statusEl.textContent = 'ANALYZING...';
+      statusEl.className = 'agent-status active';
+      modelEl.textContent = 'MODEL: ' + (data.model || '').toUpperCase();
+      break;
+    }
+
+    case 'agent_result':
+      renderAgentResult(data.agent, data.result, data.elapsed);
+      break;
+
+    case 'verdict': {
+      const level = data.level || 'clear';
+      const pattern = data.pattern || '---';
+      const color = LEVEL_COLORS[level] || '#888';
+
+      const patternEl = document.getElementById('patternDisplay');
+      patternEl.textContent = pattern;
+      patternEl.className = 'pattern-display ' + level;
+
+      const verdictEl = document.getElementById('verdictDetail');
+      verdictEl.textContent = pattern + ' \u2014 ' + level.toUpperCase();
+      verdictEl.style.color = color;
+      break;
+    }
+
+    case 'debate_end': {
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      document.getElementById('elapsedTime').textContent = elapsed + 's';
+      setStatus('COMPLETE', 'active');
+      setButtons(false);
+      break;
+    }
+  }
+}
+</script>
+</body>
+</html>

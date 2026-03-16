@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Python venv + dependencies
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir requests
+RUN pip install --no-cache-dir requests fastapi uvicorn[standard] sse-starlette
 
 # Install OpenClaw via npm (more reliable in Docker than curl installer)
 RUN npm install -g openclaw@latest && \
