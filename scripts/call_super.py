@@ -23,6 +23,7 @@ def call_ollama(host: str, model: str, system: str, prompt: str,
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        "think": False,
         "options": {"temperature": temperature, "num_predict": max_tokens},
     }
     if json_mode:

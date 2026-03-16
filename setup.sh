@@ -13,19 +13,19 @@ if ! command -v ollama &>/dev/null; then
 fi
 echo "  ✓ Ollama found"
 
-# 2. Pull required models
+# 2. Pull required models (3 different models for 3 agents)
 echo "[2/5] Pulling models..."
-echo "  Pulling qwen3.5:35b-a3b (23GB)..."
-ollama pull qwen3.5:35b-a3b || echo "  ⚠ Pull failed (may already exist)"
-
-# Optional: Nemotron Super (uncomment if 128GB available)
-# echo "  Pulling nemotron-3-super (86GB)..."
-# ollama pull nemotron-3-super || echo "  ⚠ Pull failed"
+echo "  MELCHIOR: qwen3.5:9b (6.6GB)..."
+ollama pull qwen3.5:9b || echo "  ⚠ Pull failed (may already exist)"
+echo "  BALTHASAR: nemotron-9b-n6-nothink (6.5GB)..."
+ollama pull nemotron-9b-n6-nothink || echo "  ⚠ Pull failed (may already exist)"
+echo "  CASPER: gemma3:12b (8.1GB)..."
+ollama pull gemma3:12b || echo "  ⚠ Pull failed (may already exist)"
 
 # 3. Set Ollama environment
 echo "[3/5] Setting Ollama configuration..."
 export OLLAMA_KEEP_ALIVE=120m
-export OLLAMA_MAX_LOADED_MODELS=2
+export OLLAMA_MAX_LOADED_MODELS=3
 export OLLAMA_NUM_PARALLEL=1
 export OLLAMA_HOST=0.0.0.0:11434
 echo "  ✓ KEEP_ALIVE=120m, MAX_LOADED_MODELS=2"

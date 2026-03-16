@@ -16,7 +16,7 @@ When the user asks to analyze data, debate an issue, or check the current status
 
 2. Run the 3-agent debate and generate Canvas output:
    ```
-   exec /app/scripts/debate_canvas.py --config /app/config.json --data /app/data/cache/latest.json
+   exec /app/scripts/debate_canvas.py --config /app/config.json
    ```
 
 3. Send a brief chat message with the PATTERN code result only.

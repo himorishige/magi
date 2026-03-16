@@ -38,32 +38,45 @@ def call_agent(agent_id: str, prompt: str, config: str) -> dict:
 
 
 def determine_pattern(opinions: list, domain: str) -> dict:
-    """Determine PATTERN code from 3 agent opinions."""
+    """Determine PATTERN code from 3 agent opinions.
+
+    Pattern codes (per IDENTITY.md):
+      000 = no alert, 111 = low, 222 = moderate, 333 = elevated,
+      444 = high, 555 = severe, 666 = critical
+    """
     votes = {}
     for op in opinions:
         conf = op.get("confidence", 0.5)
-        if conf >= 0.8:
+        if conf >= 0.9:
             votes[op["agent"]] = "critical"
-        elif conf >= 0.5:
+        elif conf >= 0.75:
+            votes[op["agent"]] = "high"
+        elif conf >= 0.6:
             votes[op["agent"]] = "moderate"
-        else:
+        elif conf >= 0.4:
             votes[op["agent"]] = "low"
+        else:
+            votes[op["agent"]] = "none"
 
-    critical_count = sum(1 for v in votes.values() if v == "critical")
+    severity_scores = {"critical": 3, "high": 2, "moderate": 1, "low": 0, "none": 0}
+    total = sum(severity_scores[v] for v in votes.values())
     prefix = domain.upper()[:3] if domain else "MAG"
 
-    if critical_count == 3:
-        pattern = f"{prefix}-666"
-        level = "critical"
-    elif critical_count == 2:
-        pattern = f"{prefix}-444"
-        level = "high"
-    elif critical_count == 1:
-        pattern = f"{prefix}-222"
-        level = "moderate"
+    # Map aggregate score (0-9) to 7 pattern levels
+    if total >= 8:
+        pattern, level = f"{prefix}-666", "critical"
+    elif total >= 7:
+        pattern, level = f"{prefix}-555", "severe"
+    elif total >= 5:
+        pattern, level = f"{prefix}-444", "high"
+    elif total >= 4:
+        pattern, level = f"{prefix}-333", "elevated"
+    elif total >= 2:
+        pattern, level = f"{prefix}-222", "moderate"
+    elif total >= 1:
+        pattern, level = f"{prefix}-111", "low"
     else:
-        pattern = f"{prefix}-111"
-        level = "low"
+        pattern, level = f"{prefix}-000", "clear"
 
     return {"pattern": pattern, "level": level, "votes": votes}
 
@@ -82,8 +95,11 @@ def generate_canvas_html(data: dict, opinions: list, verdict: dict) -> str:
     bal = next((o for o in opinions if o["agent"] == "balthasar"), {})
     cas = next((o for o in opinions if o["agent"] == "casper"), {})
 
-    blink_css = "animation: blink 1s infinite;" if level == "critical" else ""
-    level_color = {"critical": "#ff0040", "high": "#ff8800", "moderate": "#ffcc00", "low": "#00ff88"}.get(level, "#888")
+    blink_css = "animation: blink 1s infinite;" if level in ("critical", "severe") else ""
+    level_color = {
+        "critical": "#ff0040", "severe": "#ff2200", "high": "#ff8800",
+        "elevated": "#ffaa00", "moderate": "#ffcc00", "low": "#00ff88", "clear": "#888",
+    }.get(level, "#888")
 
     metrics_html = ""
     for m in data.get("metrics", [])[:6]:

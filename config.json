@@ -1,7 +1,12 @@
 {
   "domain": "eco",
   "ollama_host": "http://host.docker.internal:11434",
-  "ollama_model": "qwen3.5:35b-a3b",
+  "ollama_model": "qwen3.5:9b",
+  "agent_models": {
+    "melchior": "qwen3.5:9b",
+    "balthasar": "nemotron-9b-n6-nothink",
+    "casper": "gemma3:12b"
+  },
   "data_sources": {
     "eco": {
       "primary": "open-meteo",

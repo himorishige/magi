@@ -32,7 +32,7 @@ AGENT_PERSONAS = {
     },
 }
 
-FALLBACK_MODELS = ["qwen3.5:35b-a3b"]
+FALLBACK_MODELS = ["qwen3.5:9b"]
 
 
 def call_ollama(host: str, model: str, system: str, prompt: str, timeout: int = 120) -> str:
@@ -44,6 +44,8 @@ def call_ollama(host: str, model: str, system: str, prompt: str, timeout: int = 
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        "think": False,
+        "format": "json",
         "options": {"temperature": 0.7, "num_predict": 1000},
     }).encode()
 
@@ -91,14 +93,17 @@ def main():
     args = parser.parse_args()
 
     # Load config for defaults
-    host = args.host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = args.model or os.environ.get("OLLAMA_MODEL", "qwen3.5:35b-a3b")
-
+    # Priority: CLI arg > env var > config.json > hardcoded default
+    cfg = {}
     if os.path.exists(args.config):
         with open(args.config) as f:
             cfg = json.load(f)
-        host = args.host or cfg.get("ollama_host", host)
-        model = args.model or cfg.get("ollama_model", model)
+
+    host = args.host or os.environ.get("OLLAMA_HOST") or cfg.get("ollama_host", "http://localhost:11434")
+
+    # Per-agent model: CLI arg > env var > config agent_models > config ollama_model > fallback
+    agent_models = cfg.get("agent_models", {})
+    model = args.model or os.environ.get("OLLAMA_MODEL") or agent_models.get(args.agent) or cfg.get("ollama_model", "qwen3.5:9b")
 
     persona = AGENT_PERSONAS[args.agent]
 
