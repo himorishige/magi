@@ -11,5 +11,3 @@ __pycache__/
 node_modules/
 .venv/
 docs/submission-form.md
-docs/movie.mp4
-*.mp4
