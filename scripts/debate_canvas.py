@@ -40,23 +40,35 @@ def call_agent(agent_id: str, prompt: str, config: str) -> dict:
 def determine_pattern(opinions: list, domain: str) -> dict:
     """Determine PATTERN code from 3 agent opinions.
 
+    Uses the 'severity' field from each agent (0.0-1.0) when available,
+    falling back to 'confidence' for backward compatibility.
+
     Pattern codes (per IDENTITY.md):
       000 = no alert, 111 = low, 222 = moderate, 333 = elevated,
       444 = high, 555 = severe, 666 = critical
     """
     votes = {}
+    personal_actions = []
     for op in opinions:
-        conf = op.get("confidence", 0.5)
-        if conf >= 0.9:
+        # Prefer severity (data danger) over confidence (analysis certainty)
+        sev = op.get("severity", op.get("confidence", 0.5))
+        if sev >= 0.9:
             votes[op["agent"]] = "critical"
-        elif conf >= 0.75:
+        elif sev >= 0.75:
             votes[op["agent"]] = "high"
-        elif conf >= 0.6:
+        elif sev >= 0.6:
             votes[op["agent"]] = "moderate"
-        elif conf >= 0.4:
+        elif sev >= 0.4:
             votes[op["agent"]] = "low"
         else:
             votes[op["agent"]] = "none"
+
+        # Collect personal actions from all agents
+        actions = op.get("personal_actions", [])
+        if isinstance(actions, list):
+            for a in actions:
+                if a and a not in personal_actions:
+                    personal_actions.append(a)
 
     severity_scores = {"critical": 3, "high": 2, "moderate": 1, "low": 0, "none": 0}
     total = sum(severity_scores[v] for v in votes.values())
@@ -78,7 +90,10 @@ def determine_pattern(opinions: list, domain: str) -> dict:
     else:
         pattern, level = f"{prefix}-000", "clear"
 
-    return {"pattern": pattern, "level": level, "votes": votes}
+    result = {"pattern": pattern, "level": level, "votes": votes}
+    if personal_actions:
+        result["personal_actions"] = personal_actions[:9]
+    return result
 
 
 def generate_canvas_html(data: dict, opinions: list, verdict: dict) -> str:

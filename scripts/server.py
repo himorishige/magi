@@ -129,16 +129,34 @@ async def debate():
 
         yield {"event": "scan_result", "data": json.dumps(data, ensure_ascii=False)}
 
-        # Build prompt
+        # Build prompt — include wildfire-specific data when available
+        extra_context = ""
+        if data.get("sub_domain") == "wildfire":
+            alerts = data.get("alerts", [])
+            incidents = data.get("incidents", [])
+            if alerts:
+                extra_context += f"\nActive Fire-Weather Alerts:\n{json.dumps(alerts, indent=2)}\n"
+            if incidents:
+                extra_context += f"\nActive Wildfire Incidents:\n{json.dumps(incidents, indent=2)}\n"
+            hotspots = data.get("hotspots_count", 0)
+            if hotspots > 0:
+                extra_context += f"\nSatellite Fire Hotspots Detected: {hotspots}\n"
+
         prompt = (
-            f"Analyze the following {domain} data and provide your assessment.\n\n"
+            f"Analyze the following {domain} data and provide your assessment.\n"
+            f"Your goal is to help INDIVIDUALS understand how this environmental data "
+            f"affects THEM PERSONALLY — their health, safety, property, and community.\n\n"
             f"Domain: {domain}\n"
+            f"Location: {data.get('location', 'N/A')}\n"
             f"Timestamp: {data.get('timestamp', 'N/A')}\n"
             f"Source: {data.get('source', 'N/A')}\n\n"
             f"Metrics:\n{json.dumps(data.get('metrics', []), indent=2)}\n\n"
-            f"Summary: {data.get('summary', 'N/A')}\n\n"
-            f"Provide your analysis as JSON with: agent, perspective, "
-            f"opinion (max 200 words), confidence (0-1), recommendation, "
+            f"Summary: {data.get('summary', 'N/A')}\n"
+            f"{extra_context}\n"
+            f"Respond as JSON with: agent, perspective, "
+            f"opinion (max 200 words, written for a non-expert resident), "
+            f"confidence (0-1), severity (0-1, how dangerous is this data), "
+            f"recommendation, personal_actions (2-3 concrete steps for individuals), "
             f"key_points (3 items)."
         )
 

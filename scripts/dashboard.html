@@ -130,6 +130,34 @@ body::after {
   padding:6px; letter-spacing:3px; color:var(--agent-color);
   margin-top:auto;
 }
+.personal-actions {
+  font-size:0.65em; padding:6px; margin-top:6px; margin-bottom:6px;
+  background:#0f1a0f; border:1px solid #00ff8833; color:#aaa; line-height:1.5;
+}
+.personal-actions strong { color:#00ff88; letter-spacing:1px; }
+.personal-actions ul { padding-left:14px; margin-top:4px; }
+.personal-actions li { margin-bottom:3px; }
+/* Verdict personal actions panel */
+.verdict-actions {
+  padding:8px 20px; border-top:1px solid #222; background:#0a0a0a;
+  display:none; flex-shrink:0;
+}
+.verdict-actions h4 {
+  font-size:0.7em; color:#00ff88; letter-spacing:2px;
+  margin-bottom:6px; text-transform:uppercase;
+}
+.verdict-actions-grid {
+  display:grid; grid-template-columns:repeat(3, 1fr);
+  gap:8px; font-size:0.65em;
+}
+.verdict-actions-col h5 {
+  font-size:1em; letter-spacing:1px; margin-bottom:4px;
+}
+.verdict-actions-col ul { padding-left:14px; color:#999; }
+.verdict-actions-col li { margin-bottom:3px; }
+.verdict-actions-col.science h5 { color:#00ff88; }
+.verdict-actions-col.economics h5 { color:#ff8800; }
+.verdict-actions-col.ethics h5 { color:#8800ff; }
 /* Control bar */
 .controls {
   display:flex; align-items:center; justify-content:space-between;
@@ -207,6 +235,12 @@ body::after {
       <div class="agent-content" id="content-casper" style="display:none"></div>
     </div>
   </div>
+</div>
+
+<!-- Personal Actions Panel (shown after verdict) -->
+<div class="verdict-actions" id="verdictActions">
+  <h4>WHAT YOU SHOULD DO NOW</h4>
+  <div class="verdict-actions-grid" id="verdictActionsGrid"></div>
 </div>
 
 <!-- Controls -->
@@ -289,6 +323,9 @@ function resetPanels() {
   document.getElementById('verdictDetail').textContent = '---';
   document.getElementById('verdictDetail').style.color = '#888';
   document.getElementById('elapsedTime').textContent = '';
+  document.getElementById('verdictActions').style.display = 'none';
+  document.getElementById('verdictActionsGrid').innerHTML = '';
+  window._agentActions = {};
 }
 
 function renderAgentResult(agentId, result, elapsed) {
@@ -301,23 +338,33 @@ function renderAgentResult(agentId, result, elapsed) {
   statusEl.style.display = 'none';
 
   const conf = result.confidence || 0;
+  const sev = result.severity != null ? result.severity : conf;
   const kp = (result.key_points || [])
     .map(p => typeof p === 'string' ? p : JSON.stringify(p));
+  const actions = (result.personal_actions || [])
+    .map(a => typeof a === 'string' ? a : JSON.stringify(a));
+
+  const voteLabel = sev >= 0.9 ? 'CRITICAL' : sev >= 0.75 ? 'HIGH' : sev >= 0.6 ? 'MODERATE' : 'LOW';
 
   contentEl.innerHTML = `
     <div class="confidence-bar">
-      <span class="confidence-label">CONF</span>
+      <span class="confidence-label">SEV</span>
       <div class="confidence-track">
-        <div class="confidence-fill" style="width:${conf * 100}%"></div>
+        <div class="confidence-fill" style="width:${sev * 100}%"></div>
       </div>
-      <span class="confidence-val">${(conf * 100).toFixed(0)}%</span>
+      <span class="confidence-val">${(sev * 100).toFixed(0)}%</span>
     </div>
     <div class="opinion">${(result.opinion || 'No response').slice(0, 400)}</div>
     ${kp.length ? '<ul class="key-points">' + kp.map(p => '<li>' + p + '</li>').join('') + '</ul>' : ''}
+    ${actions.length ? '<div class="personal-actions"><strong>YOUR ACTIONS:</strong><ul>' + actions.map(a => '<li>' + a + '</li>').join('') + '</ul></div>' : ''}
     <div class="recommendation"><strong>REC:</strong> ${(result.recommendation || 'N/A').slice(0, 250)}</div>
-    <div class="vote">VOTE: ${(result.confidence >= 0.9 ? 'CRITICAL' : result.confidence >= 0.75 ? 'HIGH' : result.confidence >= 0.6 ? 'MODERATE' : 'LOW').toUpperCase()}</div>
+    <div class="vote">VOTE: ${voteLabel}</div>
   `;
   contentEl.style.display = 'block';
+
+  // Store actions for verdict panel
+  if (!window._agentActions) window._agentActions = {};
+  window._agentActions[agentId] = { perspective: result.perspective, actions };
 }
 
 async function doScan() {
@@ -421,6 +468,29 @@ function handleSSEEvent(event, dataStr, t0) {
       const verdictEl = document.getElementById('verdictDetail');
       verdictEl.textContent = pattern + ' \u2014 ' + level.toUpperCase();
       verdictEl.style.color = color;
+
+      // Show personal actions panel
+      const actionsPanel = document.getElementById('verdictActions');
+      const actionsGrid = document.getElementById('verdictActionsGrid');
+      const agentActions = window._agentActions || {};
+      const perspectiveMap = {
+        melchior: { label: 'SCIENCE', cls: 'science' },
+        balthasar: { label: 'ECONOMICS', cls: 'economics' },
+        casper: { label: 'ETHICS', cls: 'ethics' },
+      };
+      let hasActions = false;
+      let gridHtml = '';
+      for (const aid of ['melchior', 'balthasar', 'casper']) {
+        const info = perspectiveMap[aid];
+        const aa = (agentActions[aid] || {}).actions || [];
+        if (aa.length) hasActions = true;
+        gridHtml += `<div class="verdict-actions-col ${info.cls}">
+          <h5>${info.label}</h5>
+          ${aa.length ? '<ul>' + aa.map(a => '<li>' + a + '</li>').join('') + '</ul>' : '<div style="color:#444">—</div>'}
+        </div>`;
+      }
+      actionsGrid.innerHTML = gridHtml;
+      actionsPanel.style.display = hasActions ? 'block' : 'none';
       break;
     }
 
