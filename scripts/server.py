@@ -76,7 +76,13 @@ async def scan():
 
     # Try API first (eco domain only)
     primary = ds.get("primary", "provided")
-    if primary == "open-meteo" and domain == "eco":
+    if primary == "wildfire" and domain == "eco":
+        try:
+            wf_location = ds.get("wildfire_location", "los_angeles")
+            data = await asyncio.to_thread(fetch_data.fetch_wildfire, wf_location)
+        except Exception:
+            pass
+    elif primary == "open-meteo" and domain == "eco":
         try:
             data = await asyncio.to_thread(fetch_data.fetch_open_meteo)
         except Exception:

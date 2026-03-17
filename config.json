@@ -9,10 +9,23 @@
   },
   "data_sources": {
     "eco": {
-      "primary": "open-meteo",
+      "primary": "wildfire",
+      "wildfire_location": "los_angeles",
       "apis": {
         "open-meteo": {
           "url": "https://air-quality-api.open-meteo.com/v1/air-quality",
+          "key_required": false
+        },
+        "open-meteo-weather": {
+          "url": "https://api.open-meteo.com/v1/forecast",
+          "key_required": false
+        },
+        "noaa-nws": {
+          "url": "https://api.weather.gov/alerts/active",
+          "key_required": false
+        },
+        "calfire": {
+          "url": "https://www.fire.ca.gov/umbraco/api/IncidentApi/GeoJsonList",
           "key_required": false
         },
         "nasa-firms": {

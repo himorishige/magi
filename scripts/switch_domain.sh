@@ -11,15 +11,21 @@ AGENTS_DIR="$PROJECT_DIR/openclaw-workspace/agents"
 CONFIG="$PROJECT_DIR/config.json"
 
 DOMAIN="${1:-}"
+# wildfire is a sub-mode of eco — map it for preset selection
+ECO_PRIMARY="open-meteo"
+if [[ "$DOMAIN" == "wildfire" ]]; then
+    ECO_PRIMARY="wildfire"
+    DOMAIN="eco"
+fi
 
 if [[ -z "$DOMAIN" ]] || [[ ! "$DOMAIN" =~ ^(eco|human|culture)$ ]]; then
-    echo "Usage: $0 eco|human|culture"
+    echo "Usage: $0 eco|human|culture|wildfire"
     echo "Available presets:"
     ls -d "$PRESETS_DIR"/*/ 2>/dev/null | xargs -I{} basename {}
     exit 1
 fi
 
-echo "Switching MAGI to domain: $DOMAIN"
+echo "Switching MAGI to domain: $DOMAIN (primary: $ECO_PRIMARY)"
 
 # Copy preset SOUL.md files to agent directories
 for agent in melchior balthasar casper; do
@@ -48,6 +54,8 @@ import json
 with open('$CONFIG') as f:
     cfg = json.load(f)
 cfg['domain'] = '$DOMAIN'
+if '$DOMAIN' == 'eco':
+    cfg.setdefault('data_sources', {}).setdefault('eco', {})['primary'] = '$ECO_PRIMARY'
 with open('$CONFIG', 'w') as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
 "
@@ -61,5 +69,5 @@ else
 fi
 
 echo ""
-echo "Domain switched to: $DOMAIN"
+echo "Domain switched to: $DOMAIN (primary: $ECO_PRIMARY)"
 echo "Restart OpenClaw Gateway to apply changes."
