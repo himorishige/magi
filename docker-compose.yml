@@ -17,18 +17,7 @@ services:
     command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
 
-  magi:
-    build: .
-    ports:
-      - "18789:18789"
-    volumes:
-      - ./openclaw-workspace:/app/openclaw-workspace
-      - ./scripts:/app/scripts
-      - ./data:/app/data
-      - ./memory:/app/memory
-      - ./config.json:/app/config.json
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-    restart: unless-stopped
+  # OpenClaw runs inside NemoClaw sandbox (managed by openshell)
+  # Setup: ./scripts/setup-nemoclaw.sh
+  # Monitor: nemoclaw term
+  # Connect: nemoclaw <sandbox> connect && openclaw chat
