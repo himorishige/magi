@@ -5,7 +5,8 @@
   "agent_models": {
     "melchior": "qwen3.5:9b",
     "balthasar": "nemotron-9b-n6-nothink",
-    "casper": "gemma3:12b"
+    "casper": "gemma3:12b",
+    "moderator": "nemotron-3-nano"
   },
   "data_sources": {
     "eco": {

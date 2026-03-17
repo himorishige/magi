@@ -2,9 +2,14 @@ data/cache/*/latest.json
 data/cache/*/*.json
 !data/cache/eco/sample_*.json
 data/provided/*
+data/personas_*.json
+data/videos/
 memory/
 __pycache__/
 *.pyc
 .env
 node_modules/
 .venv/
+docs/submission-form.md
+docs/movie.mp4
+*.mp4

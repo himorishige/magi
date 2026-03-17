@@ -12,28 +12,28 @@
       "id": "moderator",
       "name": "MAGI System",
       "agentDir": "./",
-      "model": { "primary": "ollama/qwen3.5:35b-a3b" },
+      "model": { "primary": "ollama/qwen3.5:9b" },
       "thinkingDefault": "off"
     },
     {
       "id": "melchior",
       "name": "MELCHIOR",
       "agentDir": "./agents/melchior",
-      "model": { "primary": "ollama/qwen3.5:35b-a3b" },
+      "model": { "primary": "ollama/qwen3.5:9b" },
       "thinkingDefault": "off"
     },
     {
       "id": "balthasar",
       "name": "BALTHASAR",
       "agentDir": "./agents/balthasar",
-      "model": { "primary": "ollama/qwen3.5:35b-a3b" },
+      "model": { "primary": "ollama/nemotron-9b-n6-nothink" },
       "thinkingDefault": "off"
     },
     {
       "id": "casper",
       "name": "CASPER",
       "agentDir": "./agents/casper",
-      "model": { "primary": "ollama/qwen3.5:35b-a3b" },
+      "model": { "primary": "ollama/gemma3:12b" },
       "thinkingDefault": "off"
     }
   ],

@@ -90,7 +90,11 @@ def determine_pattern(opinions: list, domain: str) -> dict:
     else:
         pattern, level = f"{prefix}-000", "clear"
 
-    result = {"pattern": pattern, "level": level, "votes": votes}
+    # Risk score: 0-100 based on average agent severity
+    severities = [op.get("severity", op.get("confidence", 0.5)) for op in opinions]
+    risk_score = round(sum(severities) / len(severities) * 100) if severities else 0
+
+    result = {"pattern": pattern, "level": level, "votes": votes, "risk_score": risk_score}
     if personal_actions:
         result["personal_actions"] = personal_actions[:9]
     return result

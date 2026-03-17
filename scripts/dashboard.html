@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MAGI SYSTEM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 @keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
 @keyframes borderPulse { 0%,100%{border-color:var(--agent-color)} 50%{border-color:transparent} }
 @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-@keyframes scanMove { 0%{top:-100%} 100%{top:100%} }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   background:#0a0a0a; color:#ccc; font-family:'Courier New',monospace;
@@ -56,12 +57,26 @@ body::after {
 .status-indicator.processing { color:#ff8800; border-color:#ff8800; animation:pulse 1s infinite; }
 /* Main content */
 .main { display:flex; flex:1; overflow:hidden; }
-/* Sidebar */
+/* Sidebar with map */
 .sidebar {
-  width:180px; padding:12px; border-right:1px solid #222;
-  overflow-y:auto; flex-shrink:0;
+  width:280px; padding:0; border-right:1px solid #222;
+  overflow-y:auto; flex-shrink:0; display:flex; flex-direction:column;
 }
-.sidebar h3 {
+#map {
+  width:100%; height:220px; background:#111; flex-shrink:0;
+}
+/* Dark map tiles */
+.leaflet-tile-pane { filter:brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); }
+.leaflet-container { background:#0a0a0a; }
+.leaflet-control-attribution { display:none; }
+.leaflet-control-zoom a {
+  background:#1a1a1a !important; color:#00ff88 !important;
+  border-color:#333 !important;
+}
+.sidebar-metrics {
+  padding:10px; flex:1; overflow-y:auto;
+}
+.sidebar-metrics h3 {
   color:#555; font-size:0.65em; margin-bottom:8px;
   text-transform:uppercase; letter-spacing:2px;
 }
@@ -78,6 +93,14 @@ body::after {
 .data-summary {
   font-size:0.6em; color:#444; margin-top:8px; padding:6px;
   background:#111; border:1px solid #1a1a1a; line-height:1.4;
+}
+.map-legend {
+  padding:6px 10px; font-size:0.6em; color:#555;
+  border-bottom:1px solid #1a1a1a; display:flex; gap:12px; flex-wrap:wrap;
+}
+.legend-item { display:flex; align-items:center; gap:4px; }
+.legend-dot {
+  width:8px; height:8px; border-radius:50%; display:inline-block;
 }
 /* Agent panels */
 .agents { flex:1; display:flex; gap:1px; background:#1a1a1a; }
@@ -137,6 +160,56 @@ body::after {
 .personal-actions strong { color:#00ff88; letter-spacing:1px; }
 .personal-actions ul { padding-left:14px; margin-top:4px; }
 .personal-actions li { margin-bottom:3px; }
+/* Streaming text cursor */
+.streaming-text {
+  font-size:0.72em; line-height:1.5; color:#666; margin-bottom:8px;
+  min-height:2em;
+}
+.streaming-text::after {
+  content:'_'; animation:blink 0.8s infinite; color:var(--agent-color);
+}
+.streaming-text.done::after { content:''; animation:none; }
+/* Moderator panel */
+.moderator-panel {
+  padding:10px 20px; border-top:2px solid #00aaff; background:#0a0e14;
+  display:none; flex-shrink:0;
+}
+.moderator-panel h4 {
+  font-size:0.75em; color:#00aaff; letter-spacing:3px;
+  margin-bottom:8px; text-transform:uppercase;
+}
+.moderator-content {
+  display:flex; gap:16px; align-items:flex-start;
+}
+.moderator-text { flex:1; }
+.moderator-verdict {
+  font-size:0.75em; line-height:1.6; color:#bbb; margin-bottom:8px;
+}
+.moderator-actions {
+  font-size:0.7em;
+}
+.moderator-actions ol {
+  padding-left:18px; color:#999; margin:0;
+}
+.moderator-actions li { margin-bottom:4px; }
+.moderator-actions li strong { color:#00aaff; }
+.moderator-video {
+  flex-shrink:0; width:280px; display:none;
+}
+.moderator-video video {
+  width:100%; border:1px solid #00aaff44; cursor:pointer;
+}
+.moderator-video .video-label {
+  font-size:0.55em; color:#00aaff88; letter-spacing:2px;
+  text-align:center; margin-top:4px; text-transform:uppercase;
+}
+.moderator-streaming {
+  font-size:0.7em; color:#556; min-height:1.5em;
+}
+.moderator-streaming::after {
+  content:'_'; animation:blink 0.8s infinite; color:#00aaff;
+}
+.moderator-streaming.done::after { content:''; animation:none; }
 /* Verdict personal actions panel */
 .verdict-actions {
   padding:8px 20px; border-top:1px solid #222; background:#0a0a0a;
@@ -202,14 +275,23 @@ body::after {
 
 <!-- Main -->
 <div class="main">
-  <!-- Sidebar -->
+  <!-- Sidebar with Map -->
   <div class="sidebar">
-    <h3>Data Metrics</h3>
-    <div id="metricsContainer">
-      <div class="agent-status">NO DATA</div>
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#00ff88"></span> Location</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ff4400"></span> Active Fire</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#4488ff"></span> Low FRP</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ff4400"></span> High FRP</div>
     </div>
-    <div class="data-source" id="dataSource"></div>
-    <div class="data-summary" id="dataSummary"></div>
+    <div class="sidebar-metrics">
+      <h3>Data Metrics</h3>
+      <div id="metricsContainer">
+        <div class="agent-status">NO DATA</div>
+      </div>
+      <div class="data-source" id="dataSource"></div>
+      <div class="data-summary" id="dataSummary"></div>
+    </div>
   </div>
   <!-- Agent Panels -->
   <div class="agents">
@@ -233,6 +315,25 @@ body::after {
       <div class="agent-model" id="model-casper"></div>
       <div class="agent-status" id="status-casper">IDLE</div>
       <div class="agent-content" id="content-casper" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Moderator Synthesis Panel -->
+<div class="moderator-panel" id="moderatorPanel">
+  <h4>MAGI UNIFIED ASSESSMENT</h4>
+  <div class="moderator-streaming" id="moderatorStreaming"></div>
+  <div class="moderator-content">
+    <div class="moderator-text">
+      <div class="moderator-verdict" id="moderatorVerdict"></div>
+      <div class="moderator-actions" id="moderatorActions"></div>
+    </div>
+    <div class="moderator-video" id="moderatorVideo">
+      <video id="cosmosVideo" muted loop playsinline preload="metadata"
+             onclick="this.paused ? this.play() : this.pause()">
+        <source src="/api/videos/wildfire_la.mp4" type="video/mp4">
+      </video>
+      <div class="video-label">Wildfire Risk Visualization</div>
     </div>
   </div>
 </div>
@@ -267,11 +368,100 @@ const SEV_COLORS = {
   low:'#00ff88', info:'#888'
 };
 
-// Clock
+// --- Leaflet Map ---
+const map = L.map('map', {
+  center: [34.05, -118.25],
+  zoom: 7,
+  zoomControl: true,
+  attributionControl: false,
+});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+}).addTo(map);
+
+// Map layers
+const mapLayers = {
+  center: null,
+  incidents: L.layerGroup().addTo(map),
+  hotspots: L.layerGroup().addTo(map),
+};
+
+function updateMap(data) {
+  // Clear existing markers
+  mapLayers.incidents.clearLayers();
+  mapLayers.hotspots.clearLayers();
+  if (mapLayers.center) { map.removeLayer(mapLayers.center); }
+
+  // Center marker
+  const center = data.center;
+  if (center) {
+    mapLayers.center = L.circleMarker([center.lat, center.lon], {
+      radius: 8, color: '#00ff88', fillColor: '#00ff88',
+      fillOpacity: 0.3, weight: 2,
+    }).addTo(map);
+    // Add pulsing effect via a larger circle
+    L.circle([center.lat, center.lon], {
+      radius: 50000, color: '#00ff8844', fillColor: '#00ff8811',
+      fillOpacity: 0.1, weight: 1,
+    }).addTo(mapLayers.incidents);
+    map.setView([center.lat, center.lon], 7);
+  }
+
+  // Active fire incidents (CAL FIRE)
+  const incidents = data.incidents || [];
+  incidents.forEach(inc => {
+    if (!inc.latitude || !inc.longitude) return;
+    const radius = Math.min(Math.max(Math.sqrt(inc.acres || 1) * 0.5, 4), 20);
+    L.circleMarker([inc.latitude, inc.longitude], {
+      radius: radius, color: '#ff4400', fillColor: '#ff4400',
+      fillOpacity: 0.6, weight: 1,
+    }).bindPopup(
+      `<b style="color:#ff4400">${inc.name || 'Unknown Fire'}</b><br>` +
+      `Acres: ${(inc.acres || 0).toLocaleString()}<br>` +
+      `Contained: ${inc.contained || 0}%<br>` +
+      `County: ${inc.county || 'N/A'}`
+    ).addTo(mapLayers.incidents);
+  });
+
+  // Satellite hotspots (NASA FIRMS) — color by FRP
+  const hotspots = data.hotspots || [];
+  hotspots.forEach(hs => {
+    if (!hs.latitude || !hs.longitude) return;
+    const frp = hs.frp || 0;
+    // FRP-based coloring: low (<5 MW) = blue/industrial, high = orange/red
+    let hsColor, hsLabel;
+    if (frp >= 10) {
+      hsColor = '#ff4400'; hsLabel = 'HIGH FRP — Likely fire';
+    } else if (frp >= 5) {
+      hsColor = '#ff8800'; hsLabel = 'MODERATE FRP';
+    } else {
+      hsColor = '#4488ff'; hsLabel = 'LOW FRP — Likely industrial heat';
+    }
+    const radius = Math.min(Math.max(frp * 0.3, 2), 12);
+    L.circleMarker([hs.latitude, hs.longitude], {
+      radius: radius, color: hsColor, fillColor: hsColor,
+      fillOpacity: 0.6, weight: 0,
+    }).bindPopup(
+      `<b style="color:${hsColor}">${hsLabel}</b><br>` +
+      `FRP: ${frp} MW<br>` +
+      `Confidence: ${hs.confidence || 'N/A'}<br>` +
+      `Date: ${hs.acq_date || 'N/A'}`
+    ).addTo(mapLayers.hotspots);
+  });
+
+  // Fit bounds if we have markers
+  const allLayers = [...mapLayers.incidents.getLayers(), ...mapLayers.hotspots.getLayers()];
+  if (allLayers.length > 2) {
+    const group = L.featureGroup(allLayers);
+    map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+// Clock (Pacific Time)
 setInterval(() => {
   const now = new Date();
   document.getElementById('clock').textContent =
-    now.toISOString().slice(11,19) + ' UTC';
+    now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour12: false }) + ' PT';
 }, 1000);
 
 function setStatus(text, cls) {
@@ -306,6 +496,9 @@ function renderMetrics(data) {
     (data.summary || '').slice(0, 300);
   document.getElementById('domainBadge').textContent =
     (data.domain || 'ECO').toUpperCase() + ' IMPACT';
+
+  // Update map
+  updateMap(data);
 }
 
 function resetPanels() {
@@ -325,7 +518,13 @@ function resetPanels() {
   document.getElementById('elapsedTime').textContent = '';
   document.getElementById('verdictActions').style.display = 'none';
   document.getElementById('verdictActionsGrid').innerHTML = '';
+  document.getElementById('moderatorPanel').style.display = 'none';
+  document.getElementById('moderatorVerdict').innerHTML = '';
+  document.getElementById('moderatorActions').innerHTML = '';
+  document.getElementById('moderatorStreaming').textContent = '';
+  document.getElementById('moderatorStreaming').className = 'moderator-streaming';
   window._agentActions = {};
+  window._streamingTexts = {};
 }
 
 function renderAgentResult(agentId, result, elapsed) {
@@ -388,19 +587,20 @@ function doDebate() {
   setStatus('DEBATING', 'processing');
   const t0 = performance.now();
 
-  const evtSource = new EventSource(API + '/api/debate', {
-    // POST via EventSource requires a workaround; use fetch + ReadableStream instead
-  });
-
-  // EventSource only supports GET, so we use fetch with streaming
   fetch(API + '/api/debate', { method: 'POST' }).then(response => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let currentEvent = '';
+    let currentData = '';
 
     function processChunk() {
       reader.read().then(({ done, value }) => {
         if (done) {
+          // Process any remaining buffered event
+          if (currentEvent && currentData) {
+            handleSSEEvent(currentEvent, currentData, t0);
+          }
           setButtons(false);
           return;
         }
@@ -408,18 +608,25 @@ function doDebate() {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        let eventData = '';
         for (const line of lines) {
           if (line.startsWith('event:')) {
-            eventType = line.slice(6).trim();
+            // If we have a pending event, dispatch it before starting a new one
+            if (currentEvent && currentData) {
+              handleSSEEvent(currentEvent, currentData, t0);
+            }
+            currentEvent = line.slice(6).trim();
+            currentData = '';
           } else if (line.startsWith('data:')) {
-            eventData = line.slice(5).trim();
-          } else if (line === '' && eventType && eventData) {
-            handleSSEEvent(eventType, eventData, t0);
-            eventType = '';
-            eventData = '';
+            currentData += (currentData ? '\n' : '') + line.slice(5).trim();
+          } else if (line.trim() === '') {
+            // Empty line = end of SSE message
+            if (currentEvent && currentData) {
+              handleSSEEvent(currentEvent, currentData, t0);
+              currentEvent = '';
+              currentData = '';
+            }
           }
+          // Ignore ping lines (": ping - ...")
         }
         processChunk();
       });
@@ -445,10 +652,29 @@ function handleSSEEvent(event, dataStr, t0) {
       const panel = document.getElementById('panel-' + data.agent);
       const statusEl = document.getElementById('status-' + data.agent);
       const modelEl = document.getElementById('model-' + data.agent);
+      const contentEl = document.getElementById('content-' + data.agent);
       panel.classList.add('analyzing');
-      statusEl.textContent = 'ANALYZING...';
-      statusEl.className = 'agent-status active';
+      statusEl.style.display = 'none';
       modelEl.textContent = 'MODEL: ' + (data.model || '').toUpperCase();
+      // Show streaming text area
+      contentEl.innerHTML = '<div class="streaming-text" id="stream-' + data.agent + '"></div>';
+      contentEl.style.display = 'block';
+      if (!window._streamingTexts) window._streamingTexts = {};
+      window._streamingTexts[data.agent] = '';
+      break;
+    }
+
+    case 'agent_chunk': {
+      if (!window._streamingTexts) window._streamingTexts = {};
+      window._streamingTexts[data.agent] = (window._streamingTexts[data.agent] || '') + data.token;
+      const streamEl = document.getElementById('stream-' + data.agent);
+      if (streamEl) {
+        // Show readable preview (strip JSON syntax for readability)
+        const preview = window._streamingTexts[data.agent]
+          .replace(/[{}"]/g, '').replace(/,\s*/g, ' | ').slice(-300);
+        streamEl.textContent = preview;
+        streamEl.scrollTop = streamEl.scrollHeight;
+      }
       break;
     }
 
@@ -456,17 +682,76 @@ function handleSSEEvent(event, dataStr, t0) {
       renderAgentResult(data.agent, data.result, data.elapsed);
       break;
 
+    case 'moderator_start': {
+      const modPanel = document.getElementById('moderatorPanel');
+      modPanel.style.display = 'block';
+      document.getElementById('moderatorStreaming').textContent = '';
+      document.getElementById('moderatorStreaming').className = 'moderator-streaming';
+      window._moderatorText = '';
+      break;
+    }
+
+    case 'moderator_chunk': {
+      window._moderatorText = (window._moderatorText || '') + data.token;
+      const modStream = document.getElementById('moderatorStreaming');
+      const preview = window._moderatorText
+        .replace(/[{}"]/g, '').replace(/,\s*/g, ' | ').slice(-400);
+      modStream.textContent = preview;
+      break;
+    }
+
+    case 'moderator_result': {
+      document.getElementById('moderatorStreaming').className = 'moderator-streaming done';
+      document.getElementById('moderatorStreaming').style.display = 'none';
+      const verdict = data.unified_verdict || data.opinion || 'Assessment complete.';
+      document.getElementById('moderatorVerdict').textContent = verdict;
+      const actions = data.priority_actions || [];
+      if (actions.length) {
+        document.getElementById('moderatorActions').innerHTML =
+          '<ol>' + actions.map((a, i) =>
+            '<li><strong>#' + (i+1) + '</strong> ' + (typeof a === 'string' ? a : JSON.stringify(a)) + '</li>'
+          ).join('') + '</ol>';
+      }
+      // Show Cosmos video if available
+      fetch(API + '/api/videos').then(r => r.json()).then(v => {
+        if (v.videos && v.videos.length > 0) {
+          const videoEl = document.getElementById('moderatorVideo');
+          const cosmosEl = document.getElementById('cosmosVideo');
+          cosmosEl.querySelector('source').src = API + '/api/videos/' + v.videos[0];
+          cosmosEl.load();
+          cosmosEl.play();
+          videoEl.style.display = 'block';
+        }
+      }).catch(() => {});
+
+      // Replace "WHAT YOU SHOULD DO NOW" with moderator's unified actions
+      const verdictActionsPanel = document.getElementById('verdictActions');
+      if (actions.length) {
+        const grid = document.getElementById('verdictActionsGrid');
+        grid.innerHTML = '<div style="grid-column:1/-1"><ol style="padding-left:18px;color:#ccc;font-size:1.1em;line-height:1.8">' +
+          actions.map((a, i) => {
+            const icons = ['\u26a0\ufe0f', '\ud83d\udee1\ufe0f', '\ud83e\udd1d'];
+            return '<li style="margin-bottom:6px"><strong style="color:#00aaff">' +
+              (typeof a === 'string' ? a : JSON.stringify(a)) + '</strong></li>';
+          }).join('') + '</ol></div>';
+        verdictActionsPanel.querySelector('h4').textContent = 'WHAT YOU SHOULD DO NOW — UNIFIED PRIORITIES';
+        verdictActionsPanel.style.display = 'block';
+      }
+      break;
+    }
+
     case 'verdict': {
       const level = data.level || 'clear';
       const pattern = data.pattern || '---';
+      const riskScore = data.risk_score != null ? data.risk_score : '---';
       const color = LEVEL_COLORS[level] || '#888';
 
       const patternEl = document.getElementById('patternDisplay');
-      patternEl.textContent = pattern;
+      patternEl.textContent = riskScore + '/100';
       patternEl.className = 'pattern-display ' + level;
 
       const verdictEl = document.getElementById('verdictDetail');
-      verdictEl.textContent = pattern + ' \u2014 ' + level.toUpperCase();
+      verdictEl.textContent = 'RISK ' + riskScore + '/100 \u2014 ' + level.toUpperCase();
       verdictEl.style.color = color;
 
       // Show personal actions panel
@@ -486,7 +771,7 @@ function handleSSEEvent(event, dataStr, t0) {
         if (aa.length) hasActions = true;
         gridHtml += `<div class="verdict-actions-col ${info.cls}">
           <h5>${info.label}</h5>
-          ${aa.length ? '<ul>' + aa.map(a => '<li>' + a + '</li>').join('') + '</ul>' : '<div style="color:#444">—</div>'}
+          ${aa.length ? '<ul>' + aa.map(a => '<li>' + a + '</li>').join('') + '</ul>' : '<div style="color:#444">\u2014</div>'}
         </div>`;
       }
       actionsGrid.innerHTML = gridHtml;

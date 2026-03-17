@@ -324,6 +324,8 @@ def fetch_wildfire(location: str = "los_angeles") -> dict:
         "alerts": alerts[:5],
         "incidents": incidents[:10],
         "hotspots_count": hotspot_count,
+        "hotspots": hotspots[:50],
+        "center": {"lat": lat, "lon": lon},
         "summary": ". ".join(summary_parts),
     }
 

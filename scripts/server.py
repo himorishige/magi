@@ -4,6 +4,7 @@
 import asyncio
 import json
 import os
+import random
 import sys
 import time
 from datetime import datetime, timezone
@@ -57,6 +58,26 @@ def resolve_model(cfg: dict, agent_id: str) -> str:
 @app.get("/")
 async def dashboard():
     return FileResponse(SCRIPT_DIR / "dashboard.html", media_type="text/html")
+
+
+@app.get("/api/videos/{filename}")
+async def serve_video(filename: str):
+    """Serve Cosmos-generated videos."""
+    video_dir = SCRIPT_DIR.parent / "data" / "videos"
+    video_path = video_dir / filename
+    if video_path.exists() and video_path.suffix in (".mp4", ".webm"):
+        return FileResponse(video_path, media_type="video/mp4")
+    return {"error": "Video not found"}
+
+
+@app.get("/api/videos")
+async def list_videos():
+    """List available Cosmos-generated videos."""
+    video_dir = SCRIPT_DIR.parent / "data" / "videos"
+    if not video_dir.exists():
+        return {"videos": []}
+    videos = [f.name for f in video_dir.iterdir() if f.suffix in (".mp4", ".webm")]
+    return {"videos": videos}
 
 
 @app.get("/api/scan")
@@ -138,9 +159,52 @@ async def debate():
                 extra_context += f"\nActive Fire-Weather Alerts:\n{json.dumps(alerts, indent=2)}\n"
             if incidents:
                 extra_context += f"\nActive Wildfire Incidents:\n{json.dumps(incidents, indent=2)}\n"
-            hotspots = data.get("hotspots_count", 0)
-            if hotspots > 0:
-                extra_context += f"\nSatellite Fire Hotspots Detected: {hotspots}\n"
+            hotspots = data.get("hotspots", [])
+            hotspots_count = data.get("hotspots_count", len(hotspots))
+            if hotspots_count > 0:
+                # Filter: only include high-FRP hotspots (likely real fires)
+                fire_hotspots = [h for h in hotspots if h.get("frp", 0) >= 5]
+                industrial_count = hotspots_count - len(fire_hotspots)
+                extra_context += (
+                    f"\nSatellite Thermal Anomalies: {hotspots_count} total "
+                    f"({len(fire_hotspots)} high-FRP likely fires, "
+                    f"{industrial_count} low-FRP likely industrial heat sources — "
+                    f"do NOT count industrial heat as wildfire risk)\n"
+                )
+                # Only send likely-fire hotspots to LLM
+                top = sorted(fire_hotspots, key=lambda h: h.get("frp", 0), reverse=True)[:10]
+                if top:
+                    extra_context += "Significant hotspots (FRP >= 5 MW, likely fires):\n"
+                    for h in top:
+                        extra_context += (
+                            f"  - lat:{h['latitude']}, lon:{h['longitude']}, "
+                            f"FRP:{h.get('frp','N/A')}MW, "
+                            f"confidence:{h.get('confidence','N/A')}, "
+                            f"date:{h.get('acq_date','N/A')}\n"
+                        )
+
+        # Load persona data for personalized analysis
+        persona_context = ""
+        personas_path = SCRIPT_DIR.parent / "data" / "personas_la.json"
+        if personas_path.exists():
+            with open(personas_path) as pf:
+                all_personas = json.load(pf)
+            if all_personas:
+                sample = random.sample(all_personas, min(4, len(all_personas)))
+                persona_context = "\n\nREAL RESIDENT PROFILES (from NVIDIA Nemotron-Personas-USA dataset):\n"
+                persona_context += "Consider how this situation affects each of these real people:\n"
+                for i, p in enumerate(sample, 1):
+                    persona_context += (
+                        f"\nResident {i}: {p.get('city','')}, age {p.get('age','')}, "
+                        f"{p.get('sex','')}, {p.get('occupation','').replace('_',' ')}, "
+                        f"education: {p.get('education','').replace('_',' ')}. "
+                        f"{p.get('cultural_background','')[:150]}\n"
+                    )
+                persona_context += (
+                    "\nReference these specific residents in your analysis. "
+                    "Explain how the environmental conditions affect THEM specifically "
+                    "based on their age, occupation, and circumstances.\n"
+                )
 
         prompt = (
             f"Analyze the following {domain} data and provide your assessment.\n"
@@ -152,7 +216,8 @@ async def debate():
             f"Source: {data.get('source', 'N/A')}\n\n"
             f"Metrics:\n{json.dumps(data.get('metrics', []), indent=2)}\n\n"
             f"Summary: {data.get('summary', 'N/A')}\n"
-            f"{extra_context}\n"
+            f"{extra_context}"
+            f"{persona_context}\n"
             f"Respond as JSON with: agent, perspective, "
             f"opinion (max 200 words, written for a non-expert resident), "
             f"confidence (0-1), severity (0-1, how dangerous is this data), "
@@ -172,10 +237,51 @@ async def debate():
 
             t0 = time.monotonic()
             try:
-                raw = await asyncio.to_thread(
-                    call_agent.call_ollama, host, model, persona["system"], prompt
-                )
-                result = call_agent.parse_agent_response(raw, agent_id)
+                # Use streaming to send tokens in real-time
+                import queue
+                import threading
+
+                token_queue = queue.Queue()
+
+                def stream_worker():
+                    try:
+                        for token, _ in call_agent.call_ollama_stream(
+                            host, model, persona["system"], prompt
+                        ):
+                            token_queue.put(("token", token))
+                        token_queue.put(("done", None))
+                    except Exception as e:
+                        token_queue.put(("error", str(e)))
+
+                thread = threading.Thread(target=stream_worker, daemon=True)
+                thread.start()
+
+                full_text = ""
+                while True:
+                    try:
+                        msg_type, msg_data = await asyncio.to_thread(
+                            token_queue.get, True, 120
+                        )
+                    except Exception:
+                        break
+
+                    if msg_type == "token":
+                        full_text += msg_data
+                        yield {
+                            "event": "agent_chunk",
+                            "data": json.dumps(
+                                {"agent": agent_id, "token": msg_data},
+                                ensure_ascii=False,
+                            ),
+                        }
+                    elif msg_type == "done":
+                        break
+                    elif msg_type == "error":
+                        full_text = f"Agent failed: {msg_data}"
+                        break
+
+                thread.join(timeout=5)
+                result = call_agent.parse_agent_response(full_text, agent_id)
             except Exception as e:
                 result = {
                     "agent": agent_id,
@@ -199,6 +305,48 @@ async def debate():
         # Determine verdict
         verdict = debate_canvas.determine_pattern(opinions, domain)
         yield {"event": "verdict", "data": json.dumps(verdict, ensure_ascii=False)}
+
+        # Moderator synthesis — unified verdict from 3 perspectives
+        yield {
+            "event": "moderator_start",
+            "data": json.dumps({"model": resolve_model(cfg, "moderator")}),
+        }
+
+        mod_prompt = (
+            "Here are the three MAGI agent analyses:\n\n"
+            + "\n\n".join(
+                f"**{r.get('agent', '').upper()}** ({r.get('perspective', '')}):\n"
+                f"Opinion: {r.get('opinion', 'N/A')}\n"
+                f"Severity: {r.get('severity', 'N/A')}\n"
+                f"Key actions: {r.get('personal_actions', [])}"
+                for r in opinions
+            )
+            + f"\n\nOverall pattern: {verdict.get('pattern', 'N/A')} ({verdict.get('level', 'N/A')})\n"
+            + "Synthesize these into a unified assessment for residents."
+        )
+
+        try:
+            mod_full = ""
+            for token, _ in call_agent.call_ollama_stream(
+                host, resolve_model(cfg, "moderator"),
+                call_agent.MODERATOR_SYSTEM, mod_prompt
+            ):
+                mod_full += token
+                yield {
+                    "event": "moderator_chunk",
+                    "data": json.dumps({"token": token}, ensure_ascii=False),
+                }
+
+            mod_result = call_agent.parse_agent_response(mod_full, "moderator")
+            yield {
+                "event": "moderator_result",
+                "data": json.dumps(mod_result, ensure_ascii=False),
+            }
+        except Exception as e:
+            yield {
+                "event": "moderator_result",
+                "data": json.dumps({"error": str(e)}, ensure_ascii=False),
+            }
 
         # Save debate record
         project_root = SCRIPT_DIR.parent
